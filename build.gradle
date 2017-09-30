@@ -1,0 +1,75 @@
+apply plugin: "ch.so.agi.gretl"
+apply plugin: "de.undercouch.download"
+
+import ch.so.agi.gretl.tasks.*
+import ch.so.agi.gretl.steps.*
+import de.undercouch.gradle.tasks.download.Download
+
+ext {
+    //fosnrs = [2401,2402,2403,2404,2405,2406,2407,2408,2421,2422,2423,2424,2425,2426,2427,2428,2429,2445,2455,2456,2457,2461,2463,2464,2465,2471,2472,2473,2474,2475,2476,2477,2478,2479,2480,2481,2491,2492,2493,2495,2497,2498,2499,2500,2501,2502,2503,2511,2513,2514,2516,2517,2518,2519,2520,2523,2524,2525,2526,2527,2528,2529,2530,2532,2534,2535,2541,2542,2543,2544,2545,2546,2547,2548,2549,2550,2551,2553,2554,2555,2556,2571,2572,2573,2574,2575,2576,2578,2579,2580,2581,2582,2583,2584,2585,2586,2601,2611,2612,2613,2614,2615,2616,2617,2618,2619,2620,2621,2622]    
+    //fosnrs = [2401,2402,2403,2404,2405,2406,2407,2408]
+    fosnrs = [2524,2549]
+    url = "https://data.geo.admin.ch/ch.swisstopo-vd.amtliche-vermessung/DM01AVCH24D/ITF/SO/" // -> It's actually LV95?!
+    //downloadDir = System.getProperty("java.io.tmpdir") + File.separator
+    downloadDir = "/Users/stefan/Downloads/opendata/"
+    downloadedFiles = []
+}
+
+// Create dynamic tasks for every dataset we want to download.
+fosnrs.each { fosnr ->
+    task "downloadZipFile_$fosnr"(type: Download) {
+        description = "Download dataset $fosnr from swisstopo."
+
+        src "$url$fosnr" + ".zip"
+        dest downloadDir
+    }
+}
+
+
+// This is sort of a join tasks. It's just syntactic sugar
+// to download all datasets with a 'download'-named task.
+// See how dependsOn works.
+task downloadAllZipFiles() {
+    description = "Downloads all files from swisstopo. "
+}
+
+downloadAllZipFiles.dependsOn {
+    tasks.findAll { task -> task.name.startsWith('downloadZipFile_') }
+}
+
+task fubar() {
+    doFirst {
+        println "gaga"
+        fileTree(dir: downloadDir, includes: ['**/*.zip', '**/*.itf', '**/*.ITF']).each { file ->
+            downloadedFiles.add(file)
+        }        
+    }
+
+    doLast {
+        println "doLast"
+        println downloadedFiles
+        downloadedFiles.each { file ->
+            def fosnr = file.getName().take(4)
+            project.task("importDataset_$fosnr")
+        }
+
+        println project.tasks
+    }
+}
+
+task importAllDatasets() {
+    description = "Imports all datasets into database. "
+}
+
+importAllDatasets.dependsOn {
+    tasks.findAll { task -> task.name.startsWith('importDataset_') }
+}
+
+
+task cleanUp(type: Delete) {
+    description = "Delete everything in the download directory."
+   
+    outputs.upToDateWhen {false}
+
+    delete fileTree(dir: downloadDir, include: '**/*.*')
+}

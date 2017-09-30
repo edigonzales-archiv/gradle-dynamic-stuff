@@ -1,0 +1,5 @@
+task gaga() {
+    doLast {
+        println "fubar"
+    }
+}
